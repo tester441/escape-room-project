@@ -1,0 +1,398 @@
+:root {
+    --primary-color: #4a7c59;
+    --secondary-color: #39a0ed;
+    --dark-color: #333;
+    --light-color: #f4f4f4;
+    --danger-color: #dc3545;
+    --success-color: #28a745;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Base Styles */
+body {
+    font-family: 'Arial', sans-serif;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+/* Header Styles */
+header {
+    background-color: #2c3e50;
+    color: #fff;
+    padding: 1rem 0;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+header h1 {
+    margin: 0;
+    font-size: 2rem;
+}
+
+header nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+}
+
+header nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+}
+
+header nav ul li {
+    margin-right: 1.5rem;
+}
+
+header nav ul li:last-child {
+    margin-right: 0;
+}
+
+header nav ul li a {
+    color: #fff;
+    text-decoration: none;
+    transition: color 0.3s;
+    font-weight: 500;
+}
+
+header nav ul li a:hover {
+    color: #3498db;
+}
+
+/* Main Content Styles */
+main {
+    padding: 2rem 0;
+}
+
+.hero {
+    text-align: center;
+    padding: 3rem 1rem;
+    background-color: #3498db;
+    color: #fff;
+    border-radius: 5px;
+    margin-bottom: 2rem;
+}
+
+.hero h2 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+}
+
+.hero p {
+    font-size: 1.2rem;
+    max-width: 800px;
+    margin: 0 auto 2rem;
+}
+
+.cta-buttons {
+    margin-top: 2rem;
+}
+
+.about {
+    padding: 1rem 0;
+}
+
+.about h3 {
+    font-size: 1.8rem;
+    margin-bottom: 1rem;
+}
+
+.two-column {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem;
+}
+
+.two-column > div {
+    flex: 1;
+    min-width: 300px;
+}
+
+.image-container img {
+    max-width: 100%;
+    border-radius: 5px;
+}
+
+/* Form Styles */
+.form-container {
+    background-color: #fff;
+    border-radius: 5px;
+    padding: 2rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.form-container h2 {
+    margin-top: 0;
+    margin-bottom: 1.5rem;
+    color: #2c3e50;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.form-control {
+    width: 100%;
+    padding: 0.75rem;
+    font-size: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+
+textarea.form-control {
+    min-height: 150px;
+    resize: vertical;
+}
+
+small {
+    display: block;
+    color: #777;
+    font-size: 0.85rem;
+    margin-top: 0.3rem;
+}
+
+/* Button Styles */
+.btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    text-align: center;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.3s, transform 0.1s;
+    font-weight: bold;
+}
+
+.btn-primary {
+    background-color: #3498db;
+    color: #fff;
+    margin-right: 0.5rem;
+}
+
+.btn-primary:hover {
+    background-color: #2980b9;
+    transform: translateY(-2px);
+}
+
+.btn-secondary {
+    background-color: #95a5a6;
+    color: #fff;
+}
+
+.btn-secondary:hover {
+    background-color: #7f8c8d;
+    transform: translateY(-2px);
+}
+
+.btn-danger {
+    background-color: #e74c3c;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background-color: #c0392b;
+}
+
+.btn-sm {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.875rem;
+}
+
+/* Alert Styles */
+.alert {
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 1.5rem;
+}
+
+.alert-danger {
+    background-color: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+.alert-success {
+    background-color: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.alert-info {
+    background-color: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+}
+
+.alert ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+/* Table Styles */
+.table-responsive {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1.5rem;
+}
+
+table th,
+table td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+table tr:hover {
+    background-color: #f5f5f5;
+}
+
+/* Team Member Input Styles */
+.team-member-input {
+    margin-bottom: 0.5rem;
+}
+
+/* Game Styles */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.timer {
+    background-color: #2c3e50;
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    font-family: monospace;
+}
+
+.game-over {
+    text-align: center;
+}
+
+.action-buttons {
+    margin-top: 1.5rem;
+}
+
+.dashboard-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.stat-card {
+    background-color: #fff;
+    border-radius: 5px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    flex: 1;
+    min-width: 200px;
+    text-align: center;
+}
+
+.stat-card h3 {
+    margin-top: 0;
+    color: #2c3e50;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: #3498db;
+    margin: 0.5rem 0;
+}
+
+.admin-actions {
+    background-color: #fff;
+    border-radius: 5px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Inline Form */
+.inline-form {
+    display: inline;
+}
+
+/* Footer Styles */
+footer {
+    background-color: #2c3e50;
+    color: #fff;
+    padding: 1.5rem 0;
+    text-align: center;
+}
+
+footer p {
+    margin: 0;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    header nav {
+        flex-direction: column;
+    }
+    
+    header nav ul {
+        flex-direction: column;
+        margin-top: 1rem;
+    }
+    
+    header nav ul li {
+        margin-right: 0;
+        margin-bottom: 0.5rem;
+    }
+    
+    .two-column {
+        flex-direction: column;
+    }
+    
+    .game-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .timer {
+        margin-top: 1rem;
+    }
+}
