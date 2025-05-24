@@ -10,7 +10,7 @@ define('DB_NAME', 'escape_room_lab');
 
 // Application settings
 define('SITE_NAME', 'Escape De Laboratorium');
-define('GAME_TIME_LIMIT', 60 * 60); // 60 minuten in seconden
+define('GAME_TIME_LIMIT', 10 * 60); // 10 minuten in seconden
 
 // Error reporting
 error_reporting(E_ALL);

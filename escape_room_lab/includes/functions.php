@@ -1,16 +1,6 @@
 <?php
+require_once 'config.php';
 require_once 'database.php';
-
-// Database connection
-function connectDb() {
-    try {
-        $db = new PDO('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME, DB_USER, DB_PASS);
-        $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-        return $db;
-    } catch (PDOException $e) {
-        die("Database verbinding mislukt: " . $e->getMessage());
-    }
-}
 
 // Authentication functions
 function isLoggedIn() {
@@ -50,7 +40,6 @@ function getTeamById($teamId) {
     return $stmt->fetch();
 }
 
-// Utility functions
 function formatTime($seconds) {
     $minutes = floor($seconds / 60);
     $seconds = $seconds % 60;

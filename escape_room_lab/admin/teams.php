@@ -6,63 +6,41 @@ require_once '../includes/functions.php';
 requireAdmin();
 
 $db = connectDb();
+$teams = [];
 $errors = [];
 $success = '';
 
-// Handle form actions (delete team, reset time)
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    if (isset($_POST['action'])) {
-        // Delete team
-        if ($_POST['action'] == 'delete') {
-            $teamId = (int)$_POST['team_id'];
-            $stmt = $db->prepare("DELETE FROM teams WHERE id = ?");
-            $stmt->execute([$teamId]);
-            $success = "Team deleted successfully";
-        }
-        
-        // Reset team time
-        elseif ($_POST['action'] == 'reset_time') {
-            $teamId = (int)$_POST['team_id'];
-            $stmt = $db->prepare("UPDATE teams SET escape_time = NULL, start_time = NULL WHERE id = ?");
-            $stmt->execute([$teamId]);
-            $success = "Team time reset successfully";
-        }
+// Handle delete team action
+if (isset($_POST['action']) && $_POST['action'] == 'delete' && isset($_POST['team_id'])) {
+    $teamId = (int)$_POST['team_id'];
+    
+    try {
+        $stmt = $db->prepare("DELETE FROM teams WHERE id = ?");
+        $stmt->execute([$teamId]);
+        $success = "Team succesvol verwijderd";
+    } catch (PDOException $e) {
+        $errors[] = "Er is een fout opgetreden bij het verwijderen van het team: " . $e->getMessage();
     }
 }
 
-// Get all teams with user info
-$stmt = $db->query("
-    SELECT t.*, u.username as creator, COUNT(tm.id) as member_count 
+// Get all teams with creator info and completion status
+$stmt = $db->prepare("
+    SELECT t.*, u.username as creator_name, 
+           (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) as member_count
     FROM teams t
     JOIN users u ON t.created_by = u.id
-    LEFT JOIN team_members tm ON t.id = tm.team_id
-    GROUP BY t.id
-    ORDER BY t.escape_time ASC, t.created_at DESC
+    ORDER BY t.created_at DESC
 ");
+$stmt->execute();
 $teams = $stmt->fetchAll();
-
-// Get team details if viewing a specific team
-$teamDetails = null;
-if (isset($_GET['id'])) {
-    $teamId = (int)$_GET['id'];
-    $stmt = $db->prepare("SELECT * FROM teams WHERE id = ?");
-    $stmt->execute([$teamId]);
-    $teamDetails = $stmt->fetch();
-    
-    if ($teamDetails) {
-        $stmt = $db->prepare("SELECT * FROM team_members WHERE team_id = ?");
-        $stmt->execute([$teamId]);
-        $teamMembers = $stmt->fetchAll();
-    }
-}
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Teams - <?= SITE_NAME ?></title>
+    <title>Beheer Teams - <?= SITE_NAME ?></title>
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
@@ -73,16 +51,16 @@ if (isset($_GET['id'])) {
                 <ul>
                     <li><a href="../index.php">Home</a></li>
                     <li><a href="dashboard.php">Dashboard</a></li>
-                    <li><a href="questions.php">Manage Questions</a></li>
-                    <li><a href="../auth/logout.php">Logout (<?= $_SESSION['username'] ?>)</a></li>
+                    <li><a href="questions.php">Beheer Vragen</a></li>
+                    <li><a href="../auth/logout.php">Uitloggen (<?= $_SESSION['username'] ?>)</a></li>
                 </ul>
             </nav>
         </div>
     </header>
 
     <main class="container">
-        <h2>Manage Teams</h2>
-
+        <h2>Beheer Teams</h2>
+        
         <?php if (!empty($errors)): ?>
             <div class="alert alert-danger">
                 <ul>
@@ -98,82 +76,50 @@ if (isset($_GET['id'])) {
                 <?= $success ?>
             </div>
         <?php endif; ?>
-
-        <?php if ($teamDetails): ?>
-            <div class="form-container">
-                <h3>Team Details: <?= htmlspecialchars($teamDetails['name']) ?></h3>
-                <p><strong>Created By:</strong> <?= htmlspecialchars($teamDetails['creator'] ?? 'Unknown') ?></p>
-                <p><strong>Created At:</strong> <?= date('F j, Y, g:i a', strtotime($teamDetails['created_at'])) ?></p>
-                <p><strong>Escape Time:</strong> <?= $teamDetails['escape_time'] ? formatTime($teamDetails['escape_time']) : 'Not completed' ?></p>
-                
-                <h4>Team Members:</h4>
-                <?php if (empty($teamMembers)): ?>
-                    <p>No team members found.</p>
-                <?php else: ?>
-                    <ul>
-                        <?php foreach ($teamMembers as $member): ?>
-                            <li><?= htmlspecialchars($member['name']) ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
-                
-                <div class="action-buttons mt-3">
-                    <a href="teams.php" class="btn btn-secondary">Back to Teams</a>
-                    
-                    <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" class="inline-form" onsubmit="return confirm('Are you sure you want to reset this team\'s time?');">
-                        <input type="hidden" name="action" value="reset_time">
-                        <input type="hidden" name="team_id" value="<?= $teamDetails['id'] ?>">
-                        <button type="submit" class="btn btn-primary">Reset Time</button>
-                    </form>
-                    
-                    <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this team? This action cannot be undone.');">
-                        <input type="hidden" name="action" value="delete">
-                        <input type="hidden" name="team_id" value="<?= $teamDetails['id'] ?>">
-                        <button type="submit" class="btn btn-danger">Delete Team</button>
-                    </form>
-                </div>
-            </div>
-        <?php else: ?>
-            <h3>All Teams</h3>
+        
+        <div class="section">
+            <h3>Alle Teams</h3>
             
             <?php if (empty($teams)): ?>
                 <div class="alert alert-info">
-                    No teams have been created yet.
+                    Er zijn nog geen teams aangemaakt.
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
                     <table>
                         <thead>
                             <tr>
-                                <th>Team Name</th>
-                                <th>Created By</th>
-                                <th>Members</th>
-                                <th>Escape Time</th>
-                                <th>Created At</th>
-                                <th>Actions</th>
+                                <th>ID</th>
+                                <th>Naam</th>
+                                <th>Aangemaakt door</th>
+                                <th>Teamleden</th>
+                                <th>Status</th>
+                                <th>Aangemaakt op</th>
+                                <th>Acties</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($teams as $team): ?>
                                 <tr>
+                                    <td><?= $team['id'] ?></td>
                                     <td><?= htmlspecialchars($team['name']) ?></td>
-                                    <td><?= htmlspecialchars($team['creator']) ?></td>
+                                    <td><?= htmlspecialchars($team['creator_name']) ?></td>
                                     <td><?= $team['member_count'] ?></td>
-                                    <td><?= $team['escape_time'] ? formatTime($team['escape_time']) : 'Not completed' ?></td>
-                                    <td><?= date('F j, Y', strtotime($team['created_at'])) ?></td>
                                     <td>
-                                        <a href="teams.php?id=<?= $team['id'] ?>" class="btn btn-secondary btn-sm">View</a>
-                                        
-                                        <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" class="inline-form" onsubmit="return confirm('Are you sure you want to reset this team\'s time?');">
-                                            <input type="hidden" name="action" value="reset_time">
-                                            <input type="hidden" name="team_id" value="<?= $team['id'] ?>">
-                                            <button type="submit" class="btn btn-primary btn-sm">Reset</button>
-                                        </form>
-                                        
-                                        <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" class="inline-form" onsubmit="return confirm('Are you sure you want to delete this team?');">
+                                        <?php if ($team['escape_time']): ?>
+                                            <span class="status completed">Voltooid in <?= formatTime($team['escape_time']) ?></span>
+                                        <?php elseif ($team['start_time']): ?>
+                                            <span class="status in-progress">In Uitvoering</span>
+                                        <?php else: ?>
+                                            <span class="status not-started">Niet Gestart</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?= date('d-m-Y H:i', strtotime($team['created_at'])) ?></td>
+                                    <td>
+                                        <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" class="inline-form" onsubmit="return confirm('Weet je zeker dat je dit team wilt verwijderen?');">
                                             <input type="hidden" name="action" value="delete">
                                             <input type="hidden" name="team_id" value="<?= $team['id'] ?>">
-                                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                                            <button type="submit" class="btn btn-danger btn-sm">Verwijderen</button>
                                         </form>
                                     </td>
                                 </tr>
@@ -182,12 +128,12 @@ if (isset($_GET['id'])) {
                     </table>
                 </div>
             <?php endif; ?>
-        <?php endif; ?>
+        </div>
     </main>
 
     <footer>
         <div class="container">
-            <p>&copy; <?= date('Y') ?> <?= SITE_NAME ?> | All Rights Reserved</p>
+            <p>&copy; <?= date('Y') ?> <?= SITE_NAME ?> | Alle Rechten Voorbehouden</p>
         </div>
     </footer>
 

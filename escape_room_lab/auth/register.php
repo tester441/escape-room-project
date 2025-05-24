@@ -61,11 +61,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // If no errors, create the account
     if (empty($errors)) {
         $db = connectDb();
-        $hashedPassword = password_hash($password, PASSWORD_DEFAULT);
+        // Opslaan zonder hash, gewoon het wachtwoord zoals ingevoerd
         $stmt = $db->prepare("INSERT INTO users (username, email, password) VALUES (?, ?, ?)");
         
         try {
-            $stmt->execute([$username, $email, $hashedPassword]);
+            $stmt->execute([$username, $email, $password]);
             $_SESSION['success_message'] = "Account succesvol aangemaakt! Je kunt nu inloggen.";
             header("Location: login.php");
             exit();
