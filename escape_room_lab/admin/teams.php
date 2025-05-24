@@ -46,13 +46,15 @@ $teams = $stmt->fetchAll();
 <body>
     <header>
         <div class="container">
-            <h1><?= SITE_NAME ?> - Admin Panel</h1>
+            <h1><?= SITE_NAME ?> - Admin</h1>
             <nav>
                 <ul>
-                    <li><a href="../index.php">Home</a></li>
                     <li><a href="dashboard.php">Dashboard</a></li>
-                    <li><a href="questions.php">Beheer Vragen</a></li>
-                    <li><a href="../auth/logout.php">Uitloggen (<?= $_SESSION['username'] ?>)</a></li>
+                    <li><a href="rooms.php">Kamers</a></li>
+                    <li><a href="puzzles.php">Puzzels</a></li> <!-- Gewijzigd van questions.php naar puzzles.php -->
+                    <li><a href="users.php">Gebruikers</a></li>
+                    <li><a href="teams.php" class="active">Teams</a></li>
+                    <li><a href="../auth/logout.php">Uitloggen</a></li>
                 </ul>
             </nav>
         </div>

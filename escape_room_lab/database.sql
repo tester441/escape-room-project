@@ -1,94 +1,107 @@
--- Create database
+-- Maak de database aan als deze nog niet bestaat
 CREATE DATABASE IF NOT EXISTS escape_room_lab;
+
+-- Selecteer de database
 USE escape_room_lab;
 
--- Users table
-CREATE TABLE IF NOT EXISTS users (
+-- Schakel foreign key checks uit
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- Verwijder bestaande tabellen
+DROP TABLE IF EXISTS solved_puzzles;
+DROP TABLE IF EXISTS team_members;
+DROP TABLE IF EXISTS puzzles;
+DROP TABLE IF EXISTS rooms;
+DROP TABLE IF EXISTS teams;
+DROP TABLE IF EXISTS users;
+
+-- Schakel foreign key checks weer in
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- Maak users tabel
+CREATE TABLE users (
     id INT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    is_admin TINYINT(1) DEFAULT 0,
+    email VARCHAR(100) NOT NULL,
+    role ENUM('user', 'admin') DEFAULT 'user',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Teams table
-CREATE TABLE IF NOT EXISTS teams (
+-- Voeg admin toe met PLAIN wachtwoord
+INSERT INTO users (username, password, email, role) VALUES 
+('admin', 'admin123', 'admin@voorbeeld.nl', 'admin');
+
+-- Maak teams tabel
+CREATE TABLE teams (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    created_by INT NOT NULL,
-    escape_time INT NULL,
+    name VARCHAR(50) NOT NULL,
+    created_by INT,
     start_time INT NULL,
-    current_room INT DEFAULT 1,
+    current_room INT NULL,
+    escape_time INT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Team members table
-CREATE TABLE IF NOT EXISTS team_members (
+-- Maak team_members tabel (ontbrekende tabel)
+CREATE TABLE team_members (
     id INT AUTO_INCREMENT PRIMARY KEY,
     team_id INT NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+    user_id INT NOT NULL,
+    is_captain BOOLEAN DEFAULT FALSE,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_member (team_id, user_id)
 );
 
--- Rooms table
-CREATE TABLE IF NOT EXISTS rooms (
+-- Maak rooms tabel
+CREATE TABLE rooms (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     description TEXT NOT NULL,
-    background_image VARCHAR(255) NOT NULL,
+    room_style VARCHAR(20) NOT NULL,
     order_num INT NOT NULL DEFAULT 1
 );
 
--- Questions table
-CREATE TABLE IF NOT EXISTS questions (
+-- Maak puzzles tabel
+CREATE TABLE puzzles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     room_id INT NOT NULL,
-    question TEXT NOT NULL,
-    answer VARCHAR(255) NOT NULL,
-    hint TEXT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    emoji VARCHAR(10) NOT NULL,
+    position_top INT NOT NULL,
+    position_left INT NOT NULL,
+    options TEXT NOT NULL,
+    correct_answer VARCHAR(20) NOT NULL,
+    max_attempts INT DEFAULT 2,
     order_num INT NOT NULL DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
 );
 
--- Solved Questions table
-CREATE TABLE IF NOT EXISTS solved_questions (
+-- Maak solved_puzzles tabel
+CREATE TABLE solved_puzzles (
     id INT AUTO_INCREMENT PRIMARY KEY,
     team_id INT NOT NULL,
-    question_id INT NOT NULL,
+    puzzle_id INT NOT NULL,
+    attempts INT DEFAULT 1,
+    solved BOOLEAN DEFAULT FALSE,
     solved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_solve (team_id, question_id),
+    UNIQUE KEY unique_solve (team_id, puzzle_id),
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+    FOREIGN KEY (puzzle_id) REFERENCES puzzles(id) ON DELETE CASCADE
 );
 
--- Insert default admin user (password: admin123 without hashing)
-INSERT INTO users (username, password, email, is_admin) VALUES 
-('admin', 'admin123', 'admin@example.com', 1);
+-- Voeg kamers toe
+INSERT INTO rooms (id, name, description, room_style, order_num) VALUES
+(1, 'Laboratorium', 'Een hightech laboratorium met diverse chemische stoffen en apparatuur. Ontdek de wetenschappelijke geheimen.', 'modern-lab', 1),
+(2, 'Controleruimte', 'De centrale controleruimte met computersystemen. De uitgang is vergrendeld met wetenschappelijke codes.', 'control-room', 2);
 
--- Insert rooms
-INSERT INTO rooms (name, description, background_image, order_num) VALUES
-('Entreehal', 'De entree van het mysterieuze laboratorium. Je hebt de deur achter je horen dichtslaan en op slot gaan. Probeer een manier te vinden om verder te komen.', 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80', 1),
-('Chemisch Lab', 'Een ruimte vol met kolven, reageerbuizen en vreemde vloeistoffen. Wees voorzichtig met wat je aanraakt!', 'https://images.unsplash.com/photo-1532094349884-543bc11b234d?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80', 2),
-('Medische Kamer', 'Een kamer met medische apparatuur, microscopen en vreemde specimens op sterk water.', 'https://images.unsplash.com/photo-1516549655669-94e804e149e6?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80', 3),
-('Controleruimte', 'De centrale besturingsruimte van het laboratorium met computers en monitoren. Hier moet je de uitgang kunnen activeren.', 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80', 4);
-
--- Insert sample questions
-INSERT INTO questions (room_id, question, answer, hint, order_num) VALUES
--- Entreehal vragen
-(1, 'Op de muur staat een raadsel: "Ik heb steden, maar geen huizen. Ik heb bossen, maar geen bomen. Ik heb rivieren, maar geen water. Wat ben ik?" Wat is het antwoord?', 'Kaart', 'Je gebruikt het om je weg te vinden.', 1),
-(1, 'Je vindt een kluis met een cijferslot. Op de muur staat "Wortel van 144 + 5". Welk getal moet je invoeren?', '17', 'Wortel van 144 is 12, plus 5 is 17.', 2),
-
--- Chemisch lab vragen
-(2, 'Op een whiteboard staan chemische elementen: "Na + Cl". Welke stof wordt hiermee bedoeld?', 'Zout', 'Het is iets wat je dagelijks gebruikt bij het koken.', 1),
-(2, 'Je moet de juiste kleurcode invoeren om een kast te openen. Op een notitie staat "De kleur van water + de kleur van bloed". Wat is het antwoord?', 'Blauwrood', 'Denk aan de basiskleuren van deze substanties.', 2),
-
--- Medische kamer vragen
-(3, 'Op een medicijnfles staat "Wat is het grootste orgaan van het menselijk lichaam?" Wat is het antwoord?', 'Huid', 'Het bedekt je hele lichaam.', 1),
-(3, 'Je moet de hartslag van een patiënt invoeren om toegang te krijgen tot een medicijnkast. Op een notitie staat "Normale hartslag in rust van een volwassene". Welk getal voer je in?', '70', 'Het ligt meestal tussen 60 en 80 slagen per minuut.', 2),
-
--- Controleruimte vragen
-(4, 'Om het systeem te ontgrendelen moet je het wachtwoord invoeren. Een hint op het scherm zegt "De achternaam van de beroemde wetenschapper die de relativiteitstheorie formuleerde".', 'Einstein', 'E=mc²', 1),
-(4, 'Je hebt alle codes verzameld. Nu moet je de sleutelcode invoeren om de deur te ontgrendelen. De code is het jaartal waarin het periodiek systeem der elementen werd gepubliceerd door Dmitri Mendelejev.', '1869', 'Het was in de tweede helft van de 19e eeuw.', 2);
+-- Voeg wetenschappelijke puzzels toe
+INSERT INTO puzzles (room_id, title, description, emoji, position_top, position_left, options, correct_answer, max_attempts, order_num) VALUES
+(1, 'Chemische Test', 'Je ziet een reeks gekleurde vloeistoffen. Welke vloeistof geeft een groene kleur aan een vlam?', '🧪', 40, 20, '{"A":"Rood (Lithiumchloride)","B":"Groen (Koperchloride)","C":"Paars (Kaliumchloride)","D":"Geel (Natriumchloride)"}', 'B', 2, 1),
+(1, 'Materiaalonderzoek', 'Op het computerscherm zie je een analyse van metalen. Welke vloeistof kan aluminium verzwakken bij kamertemperatuur?', '💻', 35, 65, '{"A":"Water","B":"Alcohol","C":"Gallium","D":"Azijnzuur"}', 'C', 2, 2),
+(2, 'Chemische Reactie', 'Op een post-it bij de kluis staat: "Element dat heftig reageert met water". Welk element is dit?', '🔒', 60, 25, '{"A":"Natrium (Na)","B":"Zuurstof (O)","C":"Helium (He)","D":"IJzer (Fe)"}', 'A', 2, 1),
+(2, 'Labwaarden', 'Het controlepaneel vraagt om de exacte temperatuur waarop water kookt op zeeniveau.', '🎛️', 30, 70, '{"A":"0°C","B":"100°C","C":"50°C","D":"200°C"}', 'B', 2, 2);

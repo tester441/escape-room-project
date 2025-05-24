@@ -12,43 +12,47 @@ $errors = [];
 $username = '';
 
 // Process form submission
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Get form data
-    $username = sanitizeInput($_POST['username']);
-    $password = $_POST['password'];
-
-    // Validate form data
-    if (empty($username)) {
-        $errors[] = "Gebruikersnaam is verplicht";
-    }
-
-    if (empty($password)) {
-        $errors[] = "Wachtwoord is verplicht";
-    }
-
-    // Check credentials
-    if (empty($errors)) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
+    
+    if (empty($username) || empty($password)) {
+        $errors[] = "Vul alstublieft zowel de gebruikersnaam als het wachtwoord in.";
+    } else {
         $db = connectDb();
         $stmt = $db->prepare("SELECT * FROM users WHERE username = ?");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
-
-        // Direct password comparison (no hashing)
-        if ($user && $password === $user['password']) {
-            // Set session variables
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['is_admin'] = $user['is_admin'];
+        
+        // Aangepast om zowel gehashte als niet-gehashte wachtwoorden te accepteren
+        if ($user) {
+            $passwordMatch = false;
             
-            // Redirect based on role
-            if ($user['is_admin']) {
-                header("Location: ../admin/dashboard.php");
-            } else {
-                header("Location: ../index.php");
+            // Controleer of het een eenvoudig wachtwoord is (zoals admin123)
+            if ($password === $user['password']) {
+                $passwordMatch = true;
+            } 
+            // Controleer anders de gehashte versie (voor oudere accounts)
+            else if (password_verify($password, $user['password'])) {
+                $passwordMatch = true;
             }
-            exit();
+            
+            if ($passwordMatch) {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['username'] = $user['username'];
+                $_SESSION['is_admin'] = ($user['role'] == 'admin') ? 1 : 0;
+                
+                if ($_SESSION['is_admin']) {
+                    header("Location: ../admin/dashboard.php");
+                } else {
+                    header("Location: ../index.php");
+                }
+                exit();
+            } else {
+                $errors[] = "Ongeldige gebruikersnaam of wachtwoord.";
+            }
         } else {
-            $errors[] = "Ongeldige gebruikersnaam of wachtwoord";
+            $errors[] = "Ongeldige gebruikersnaam of wachtwoord.";
         }
     }
 }

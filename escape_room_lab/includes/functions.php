@@ -8,6 +8,19 @@ function isLoggedIn() {
 }
 
 function isAdmin() {
+    // Haal de gebruikersrol op uit de database in plaats van te vertrouwen op sessie
+    if (!isset($_SESSION['user_id'])) {
+        return false;
+    }
+    
+    $db = connectDb();
+    $stmt = $db->prepare("SELECT role FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $user = $stmt->fetch();
+    
+    // Update de sessie met de correcte admin status
+    $_SESSION['is_admin'] = ($user && $user['role'] == 'admin') ? 1 : 0;
+    
     return isset($_SESSION['is_admin']) && $_SESSION['is_admin'] == 1;
 }
 
@@ -58,17 +71,35 @@ function displayAlert($message, $type = 'info') {
 // Ensure solved_questions table exists
 function ensureSolvedQuestionsTable() {
     $db = connectDb();
-    $db->exec("CREATE TABLE IF NOT EXISTS solved_questions (
+    $db->exec("CREATE TABLE IF NOT EXISTS solved_puzzles (
         id INT AUTO_INCREMENT PRIMARY KEY,
         team_id INT NOT NULL,
-        question_id INT NOT NULL,
+        puzzle_id INT NOT NULL,
+        attempts INT DEFAULT 1,
+        solved BOOLEAN DEFAULT FALSE,
         solved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_solve (team_id, question_id),
+        UNIQUE KEY unique_solve (team_id, puzzle_id),
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-        FOREIGN KEY (question_id) REFERENCES questions(id) ON DELETE CASCADE
+        FOREIGN KEY (puzzle_id) REFERENCES puzzles(id) ON DELETE CASCADE
     )");
 }
 
-// Call this function to ensure the table exists
+// Ensure team_members table exists
+function ensureTeamMembersTable() {
+    $db = connectDb();
+    $db->exec("CREATE TABLE IF NOT EXISTS team_members (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        team_id INT NOT NULL,
+        user_id INT NOT NULL,
+        is_captain BOOLEAN DEFAULT FALSE,
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE KEY unique_member (team_id, user_id)
+    )");
+}
+
+// Call this function to ensure the tables exist
 ensureSolvedQuestionsTable();
+ensureTeamMembersTable();
 ?>

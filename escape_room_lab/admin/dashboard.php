@@ -17,7 +17,7 @@ $teamCount = $stmt->fetch()['team_count'];
 $stmt = $db->query("SELECT COUNT(*) as room_count FROM rooms");
 $roomCount = $stmt->fetch()['room_count'];
 
-$stmt = $db->query("SELECT COUNT(*) as question_count FROM questions");
+$stmt = $db->query("SELECT COUNT(*) as question_count FROM puzzles"); // FIX: Vervang 'questions' door 'puzzles'
 $questionCount = $stmt->fetch()['question_count'];
 
 $stmt = $db->query("SELECT COUNT(*) as completed_count FROM teams WHERE escape_time IS NOT NULL");
@@ -35,14 +35,15 @@ $completedCount = $stmt->fetch()['completed_count'];
 <body>
     <header>
         <div class="container">
-            <h1><?= SITE_NAME ?> - Admin Panel</h1>
+            <h1><?= SITE_NAME ?> - Admin</h1>
             <nav>
                 <ul>
-                    <li><a href="../index.php">Home</a></li>
-                    <li><a href="rooms.php">Beheer Kamers</a></li>
-                    <li><a href="questions.php">Beheer Vragen</a></li>
-                    <li><a href="teams.php">Beheer Teams</a></li>
-                    <li><a href="../auth/logout.php">Uitloggen (<?= $_SESSION['username'] ?>)</a></li>
+                    <li><a href="dashboard.php" class="active">Dashboard</a></li>
+                    <li><a href="rooms.php">Kamers</a></li>
+                    <li><a href="puzzles.php">Puzzels</a></li> <!-- Veranderd van questions.php naar puzzles.php -->
+                    <li><a href="users.php">Gebruikers</a></li>
+                    <li><a href="teams.php">Teams</a></li>
+                    <li><a href="../auth/logout.php">Uitloggen</a></li>
                 </ul>
             </nav>
         </div>
@@ -82,7 +83,7 @@ $completedCount = $stmt->fetch()['completed_count'];
             <h3>Snelle Acties</h3>
             <div class="action-buttons">
                 <a href="rooms.php?action=add" class="btn btn-primary">Kamer Toevoegen</a>
-                <a href="questions.php?action=add" class="btn btn-primary">Vraag Toevoegen</a>
+                <a href="puzzles.php?action=add" class="btn btn-primary">Vraag Toevoegen</a> <!-- Gewijzigd van questions.php naar puzzles.php -->
                 <a href="teams.php" class="btn btn-secondary">Teams Bekijken</a>
                 <a href="../teams/leaderboard.php" class="btn btn-secondary">Scorebord Bekijken</a>
             </div>

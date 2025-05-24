@@ -5,110 +5,70 @@ require_once '../includes/functions.php';
 // Require login
 requireLogin();
 
-// Admin cannot create teams (they manage them)
+// Admin cannot create teams
 if (isAdmin()) {
-    header("Location: ../admin/teams.php");
+    header("Location: ../admin/dashboard.php");
     exit();
 }
 
-$errors = [];
-$teamName = '';
-$teamMembers = ['', '', '']; // Default 3 empty team member fields
-
-// Check if user already has a team
 $db = connectDb();
-$existingTeam = null;
+$errors = [];
+$success = '';
 
-$stmt = $db->prepare("SELECT * FROM teams WHERE created_by = ? ORDER BY created_at DESC LIMIT 1");
-$stmt->execute([$_SESSION['user_id']]);
-$existingTeam = $stmt->fetch();
-
-// Process form submission
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Get form data
+// Handle form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $teamName = sanitizeInput($_POST['team_name']);
-    $teamMembers = isset($_POST['team_members']) ? $_POST['team_members'] : [];
     
-    // Filter empty values
-    $teamMembers = array_filter($teamMembers, function($value) {
-        return !empty(trim($value));
-    });
-    
-    // Validate form data
     if (empty($teamName)) {
-        $errors[] = "Teamnaam is verplicht";
-    }
-    
-    if (count($teamMembers) < 1) {
-        $errors[] = "Minimaal één teamlid is verplicht";
-    }
-    
-    // Check if team name already exists
-    if (empty($errors)) {
-        $stmt = $db->prepare("SELECT * FROM teams WHERE name = ? AND id != ?");
-        $stmt->execute([$teamName, $existingTeam ? $existingTeam['id'] : 0]);
-        
+        $errors[] = "Teamnaam is verplicht.";
+    } else {
+        // Check if team name already exists
+        $stmt = $db->prepare("SELECT id FROM teams WHERE name = ?");
+        $stmt->execute([$teamName]);
         if ($stmt->rowCount() > 0) {
-            $errors[] = "Teamnaam bestaat al";
-        }
-    }
-    
-    // If no errors, create or update the team
-    if (empty($errors)) {
-        $db->beginTransaction();
-        
-        try {
-            if ($existingTeam) {
-                // Update existing team
-                $stmt = $db->prepare("UPDATE teams SET name = ? WHERE id = ?");
-                $stmt->execute([$teamName, $existingTeam['id']]);
-                $teamId = $existingTeam['id'];
-                
-                // Delete existing members
-                $stmt = $db->prepare("DELETE FROM team_members WHERE team_id = ?");
-                $stmt->execute([$teamId]);
-            } else {
-                // Insert team
-                $stmt = $db->prepare("INSERT INTO teams (name, created_by) VALUES (?, ?)");
-                $stmt->execute([$teamName, $_SESSION['user_id']]);
+            $errors[] = "Deze teamnaam bestaat al.";
+        } else {
+            // Create team
+            $stmt = $db->prepare("INSERT INTO teams (name, created_by) VALUES (?, ?)");
+            $result = $stmt->execute([$teamName, $_SESSION['user_id']]);
+            
+            if ($result) {
                 $teamId = $db->lastInsertId();
+                
+                // Add creator as team member and captain
+                $stmt = $db->prepare("INSERT INTO team_members (team_id, user_id, is_captain) VALUES (?, ?, 1)");
+                $stmt->execute([$teamId, $_SESSION['user_id']]);
+                
+                // Set session
+                $_SESSION['team_id'] = $teamId;
+                $_SESSION['team_name'] = $teamName;
+                
+                $success = "Team succesvol aangemaakt!";
+                header("Location: ../game/play.php");
+                exit();
+            } else {
+                $errors[] = "Er is een fout opgetreden bij het aanmaken van het team.";
             }
-            
-            // Insert team members
-            $stmt = $db->prepare("INSERT INTO team_members (team_id, name) VALUES (?, ?)");
-            foreach ($teamMembers as $member) {
-                $memberName = sanitizeInput($member);
-                if (!empty($memberName)) {
-                    $stmt->execute([$teamId, $memberName]);
-                }
-            }
-            
-            $db->commit();
-            $_SESSION['team_id'] = $teamId;
-            $_SESSION['team_name'] = $teamName;
-            $_SESSION['success_message'] = $existingTeam ? "Team succesvol bijgewerkt!" : "Team succesvol aangemaakt!";
-            header("Location: ../game/play.php");
-            exit();
-        } catch (PDOException $e) {
-            $db->rollBack();
-            $errors[] = "Er is een fout opgetreden: " . $e->getMessage();
         }
     }
 }
 
-// Fill form with existing team data if editing
-if ($existingTeam && empty($teamName)) {
-    $teamName = $existingTeam['name'];
-    
-    // Get team members
-    $stmt = $db->prepare("SELECT name FROM team_members WHERE team_id = ?");
-    $stmt->execute([$existingTeam['id']]);
-    $members = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    if (count($members) > 0) {
-        $teamMembers = array_merge($members, array_fill(0, max(0, 3 - count($members)), ''));
-    }
+// Check for error message from play.php
+if (isset($_SESSION['error_message'])) {
+    $errors[] = $_SESSION['error_message'];
+    unset($_SESSION['error_message']);
 }
+
+// Get user's existing teams
+$stmt = $db->prepare("
+    SELECT t.* 
+    FROM teams t
+    JOIN team_members tm ON t.id = tm.team_id
+    WHERE tm.user_id = ?
+    ORDER BY t.created_at DESC
+");
+$stmt->execute([$_SESSION['user_id']]);
+$userTeams = $stmt->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -126,8 +86,7 @@ if ($existingTeam && empty($teamName)) {
             <nav>
                 <ul>
                     <li><a href="../index.php">Home</a></li>
-                    <li><a href="leaderboard.php">Scorebord</a></li>
-                    <li><a href="../game/play.php">Speel</a></li>
+                    <li><a href="../teams/leaderboard.php">Scorebord</a></li>
                     <li><a href="../auth/logout.php">Uitloggen (<?= $_SESSION['username'] ?>)</a></li>
                 </ul>
             </nav>
@@ -135,55 +94,56 @@ if ($existingTeam && empty($teamName)) {
     </header>
 
     <main class="container">
-        <div class="form-container">
-            <h2><?= $existingTeam ? 'Team Bewerken' : 'Team Aanmaken' ?></h2>
-            
-            <?php if (isset($_SESSION['error_message'])): ?>
-                <div class="alert alert-danger">
-                    <p><?= $_SESSION['error_message'] ?></p>
-                    <?php unset($_SESSION['error_message']); ?>
-                </div>
-            <?php endif; ?>
-            
-            <?php if (!empty($errors)): ?>
-                <div class="alert alert-danger">
-                    <ul>
-                        <?php foreach ($errors as $error): ?>
-                            <li><?= $error ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            <?php endif; ?>
-            
-            <form method="post" action="<?= htmlspecialchars($_SERVER['PHP_SELF']) ?>" class="needs-validation">
+        <h2>Team Aanmaken</h2>
+        
+        <?php if (!empty($errors)): ?>
+            <div class="alert alert-danger">
+                <?php foreach ($errors as $error): ?>
+                    <p><?= $error ?></p>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (!empty($success)): ?>
+            <div class="alert alert-success">
+                <p><?= $success ?></p>
+            </div>
+        <?php endif; ?>
+        
+        <div class="card">
+            <h3>Nieuw Team</h3>
+            <form method="post">
                 <div class="form-group">
                     <label for="team_name">Teamnaam:</label>
-                    <input type="text" name="team_name" id="team_name" class="form-control" value="<?= htmlspecialchars($teamName) ?>" required>
+                    <input type="text" id="team_name" name="team_name" required>
                 </div>
                 
-                <div class="form-group">
-                    <label>Teamleden:</label>
-                    <div id="team_members_container">
-                        <?php foreach ($teamMembers as $index => $member): ?>
-                            <div class="team-member-input">
-                                <input type="text" name="team_members[]" class="form-control" value="<?= htmlspecialchars($member) ?>" placeholder="Naam teamlid" <?= $index === 0 ? 'required' : '' ?>>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                    <button type="button" id="add_member" class="btn btn-secondary">Teamlid Toevoegen</button>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">Team Aanmaken</button>
                 </div>
-                
-                <div class="form-group">
-                    <button type="submit" class="btn btn-primary"><?= $existingTeam ? 'Team Bijwerken' : 'Team Aanmaken' ?></button>
-                </div>
-                
-                <?php if ($existingTeam): ?>
-                    <div class="alert alert-info">
-                        <p><strong>Let op:</strong> Je hebt al een team. Als je dit formulier verstuurt, wordt je bestaande team bijgewerkt.</p>
-                    </div>
-                <?php endif; ?>
             </form>
         </div>
+        
+        <?php if (!empty($userTeams)): ?>
+            <h3>Jouw Teams</h3>
+            <div class="team-list">
+                <?php foreach ($userTeams as $team): ?>
+                    <div class="team-card">
+                        <h4><?= htmlspecialchars($team['name']) ?></h4>
+                        <p>Aangemaakt op: <?= date('d-m-Y H:i', strtotime($team['created_at'])) ?></p>
+                        <?php if ($team['escape_time']): ?>
+                            <p>Escape tijd: <?= formatTime($team['escape_time']) ?></p>
+                        <?php endif; ?>
+                        <div class="team-actions">
+                            <form method="post" action="../game/play.php">
+                                <input type="hidden" name="select_team" value="<?= $team['id'] ?>">
+                                <button type="submit" class="btn btn-primary">Spelen</button>
+                            </form>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </main>
 
     <footer>
@@ -191,17 +151,5 @@ if ($existingTeam && empty($teamName)) {
             <p>&copy; <?= date('Y') ?> <?= SITE_NAME ?> | Alle Rechten Voorbehouden</p>
         </div>
     </footer>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('add_member').addEventListener('click', function() {
-                const container = document.getElementById('team_members_container');
-                const input = document.createElement('div');
-                input.className = 'team-member-input';
-                input.innerHTML = '<input type="text" name="team_members[]" class="form-control" placeholder="Naam teamlid">';
-                container.appendChild(input);
-            });
-        });
-    </script>
 </body>
 </html>
