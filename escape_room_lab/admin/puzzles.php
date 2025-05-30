@@ -25,6 +25,7 @@ $puzzleOptionD = '';
 $puzzleCorrectAnswer = 'A';
 $puzzleMaxAttempts = 2;
 $puzzleOrderNum = 1;
+$puzzleHint = ''; // Nieuwe variabele voor hint
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -43,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $puzzleCorrectAnswer = sanitizeInput($_POST['correct_answer']);
         $puzzleMaxAttempts = (int)$_POST['max_attempts'];
         $puzzleOrderNum = (int)$_POST['order_num'];
+        $puzzleHint = sanitizeInput($_POST['hint']); // Verkrijg hint van formulier
         
         $options = json_encode([
             'A' => $puzzleOptionA,
@@ -54,8 +56,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($puzzleTitle) || empty($puzzleDescription)) {
             $errors[] = "Titel en beschrijving zijn verplicht.";
         } else {
-            $stmt = $db->prepare("INSERT INTO puzzles (room_id, title, description, emoji, position_top, position_left, options, correct_answer, max_attempts, order_num) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $result = $stmt->execute([$puzzleRoomId, $puzzleTitle, $puzzleDescription, $puzzleEmoji, $puzzlePositionTop, $puzzlePositionLeft, $options, $puzzleCorrectAnswer, $puzzleMaxAttempts, $puzzleOrderNum]);
+            // Aangepast query om hint mee te nemen
+            $stmt = $db->prepare("INSERT INTO puzzles (room_id, title, description, emoji, position_top, position_left, options, correct_answer, max_attempts, order_num, hint) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $result = $stmt->execute([$puzzleRoomId, $puzzleTitle, $puzzleDescription, $puzzleEmoji, $puzzlePositionTop, $puzzlePositionLeft, $options, $puzzleCorrectAnswer, $puzzleMaxAttempts, $puzzleOrderNum, $puzzleHint]);
             
             if ($result) {
                 $success = "Puzzel succesvol toegevoegd!";
@@ -67,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $puzzleOptionB = '';
                 $puzzleOptionC = '';
                 $puzzleOptionD = '';
+                $puzzleHint = '';
             } else {
                 $errors[] = "Er is een fout opgetreden bij het toevoegen van de puzzel.";
             }
@@ -87,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $puzzleCorrectAnswer = sanitizeInput($_POST['correct_answer']);
         $puzzleMaxAttempts = (int)$_POST['max_attempts'];
         $puzzleOrderNum = (int)$_POST['order_num'];
+        $puzzleHint = sanitizeInput($_POST['hint']); // Verkrijg hint van formulier
         
         $options = json_encode([
             'A' => $puzzleOptionA,
@@ -98,8 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($puzzleTitle) || empty($puzzleDescription)) {
             $errors[] = "Titel en beschrijving zijn verplicht.";
         } else {
-            $stmt = $db->prepare("UPDATE puzzles SET room_id = ?, title = ?, description = ?, emoji = ?, position_top = ?, position_left = ?, options = ?, correct_answer = ?, max_attempts = ?, order_num = ? WHERE id = ?");
-            $result = $stmt->execute([$puzzleRoomId, $puzzleTitle, $puzzleDescription, $puzzleEmoji, $puzzlePositionTop, $puzzlePositionLeft, $options, $puzzleCorrectAnswer, $puzzleMaxAttempts, $puzzleOrderNum, $puzzleId]);
+            // Aangepast query om hint mee te nemen
+            $stmt = $db->prepare("UPDATE puzzles SET room_id = ?, title = ?, description = ?, emoji = ?, position_top = ?, position_left = ?, options = ?, correct_answer = ?, max_attempts = ?, order_num = ?, hint = ? WHERE id = ?");
+            $result = $stmt->execute([$puzzleRoomId, $puzzleTitle, $puzzleDescription, $puzzleEmoji, $puzzlePositionTop, $puzzlePositionLeft, $options, $puzzleCorrectAnswer, $puzzleMaxAttempts, $puzzleOrderNum, $puzzleHint, $puzzleId]);
             
             if ($result) {
                 $success = "Puzzel succesvol bijgewerkt!";
@@ -113,6 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $puzzleOptionB = '';
                 $puzzleOptionC = '';
                 $puzzleOptionD = '';
+                $puzzleHint = '';
             } else {
                 $errors[] = "Er is een fout opgetreden bij het bijwerken van de puzzel.";
             }
@@ -161,6 +168,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) 
         $puzzleCorrectAnswer = $puzzle['correct_answer'];
         $puzzleMaxAttempts = $puzzle['max_attempts'];
         $puzzleOrderNum = $puzzle['order_num'];
+        $puzzleHint = $puzzle['hint'] ?? ''; // Haal hint op uit database
     }
 }
 
@@ -313,6 +321,12 @@ $puzzles = $stmt->fetchAll();
                     <label for="order_num">Volgorde:</label>
                     <input type="number" id="order_num" name="order_num" value="<?= $puzzleOrderNum ?>" min="1" required>
                 </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="hint">Hint (optioneel):</label>
+                <textarea id="hint" name="hint" rows="2"><?= htmlspecialchars($puzzleHint ?? '') ?></textarea>
+                <small>Geef spelers een hint die ze kunnen gebruiken als ze vastlopen.</small>
             </div>
             
             <div class="form-actions">

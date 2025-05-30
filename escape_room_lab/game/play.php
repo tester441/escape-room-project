@@ -93,6 +93,14 @@ function resetGameDatabase() {
         // Re-enable foreign key checks
         $db->exec("SET FOREIGN_KEY_CHECKS = 1");
         
+        // Controleer of de 'hint' kolom bestaat, zo niet, voeg deze toe
+        try {
+            $db->query("SELECT hint FROM puzzles LIMIT 1");
+        } catch (PDOException $e) {
+            // Hint kolom bestaat nog niet, voeg toe
+            $db->exec("ALTER TABLE puzzles ADD COLUMN hint TEXT DEFAULT NULL");
+        }
+        
         return true;
     } catch (PDOException $e) {
         error_log("Database reset error: " . $e->getMessage());
@@ -143,13 +151,14 @@ $stmt = $db->prepare("SELECT * FROM teams WHERE id = ?");
 $stmt->execute([$_SESSION['team_id']]);
 $team = $stmt->fetch();
 
-if (!$team) {
-    // Team no longer exists, clear session and redirect
-    unset($_SESSION['team_id']);
-    unset($_SESSION['team_name']);
-    $_SESSION['error_message'] = "Je team bestaat niet meer. Maak een nieuw team aan.";
-    header("Location: ../teams/create.php");
-    exit();
+// IMPORTANT FIX: First check game status right after getting the team
+if ($team && $team['escape_time'] !== null) {
+    $gameOver = true;
+    if ($team['escape_time'] > 0) {
+        $success = "Gefeliciteerd! Je hebt de escape room voltooid in " . formatTime($team['escape_time']) . "!";
+    } else {
+        $errors[] = "Game over! Je hebt te veel fouten gemaakt bij een van de puzzels.";
+    }
 }
 
 // Get total rooms
@@ -200,7 +209,36 @@ if (isset($_POST['reset_game'])) {
     exit();
 }
 
-// Handle puzzle selection
+// FIXED NEXT ROOM HANDLER - This was causing the room navigation issue
+if (isset($_POST['next_room']) && !$gameOver) {
+    $nextRoomId = $team['current_room'] + 1;
+    
+    if ($nextRoomId <= $totalRooms) {
+        $stmt = $db->prepare("UPDATE teams SET current_room = ? WHERE id = ?");
+        $stmt->execute([$nextRoomId, $team['id']]);
+        
+        // Redirect to refresh the page with new room - This ensures the room updates
+        header("Location: play.php");
+        exit();
+    }
+}
+
+// Handle previous room navigation
+if (isset($_POST['prev_room']) && !$gameOver) {
+    $prevRoomId = $team['current_room'] - 1;
+    
+    if ($prevRoomId >= 1) {
+        $stmt = $db->prepare("UPDATE teams SET current_room = ? WHERE id = ?");
+        $stmt->execute([$prevRoomId, $team['id']]);
+        $team['current_room'] = $prevRoomId;
+        
+        // Redirect to refresh the page with new room
+        header("Location: play.php");
+        exit();
+    }
+}
+
+// Handle puzzle selection - Check if game is over first
 if (isset($_GET['puzzle_id']) && !$gameOver) {
     $puzzleId = (int)$_GET['puzzle_id'];
     $stmt = $db->prepare("SELECT * FROM puzzles WHERE id = ? AND room_id = ?");
@@ -214,13 +252,17 @@ if (isset($_GET['puzzle_id']) && !$gameOver) {
     
     if ($puzzleStatus && $puzzleStatus['solved']) {
         $errors[] = "Je hebt deze puzzel al opgelost!";
+    } else if ($gameOver) {
+        // Redirect to main game page if game is over
+        header("Location: play.php");
+        exit();
     } else {
         $showPuzzle = true;
         $puzzleOptions = json_decode($currentPuzzle['options'], true);
     }
 }
 
-// Handle puzzle answer
+// Handle puzzle answer - Fix the completion logic
 if (isset($_POST['submit_answer']) && isset($_POST['puzzle_id']) && !$gameOver) {
     $puzzleId = (int)$_POST['puzzle_id'];
     $selectedAnswer = $_POST['selected_answer'];
@@ -248,10 +290,13 @@ if (isset($_POST['submit_answer']) && isset($_POST['puzzle_id']) && !$gameOver) 
                 // Check if max attempts reached
                 if (!$solved && $attempts >= $puzzle['max_attempts']) {
                     $errors[] = "Je hebt alle pogingen verbruikt! De puzzel is mislukt.";
-                    // Fail the game - too many wrong attempts
-                    $gameOver = true;
-                    $db->prepare("UPDATE teams SET escape_time = NULL WHERE id = ?")->execute([$team['id']]);
+                    // Mark as game over with escape_time=0 (failed)
+                    $db->prepare("UPDATE teams SET escape_time = 0 WHERE id = ?")->execute([$team['id']]);
                     $errors[] = "Game over! Je hebt te veel fouten gemaakt bij een van de puzzels.";
+                    $gameOver = true;
+                    $showPuzzle = false;
+                    // Redirect to main page to show game over screen
+                    echo "<script>setTimeout(function(){ window.location.href='play.php'; }, 1500);</script>";
                 } else if ($solved) {
                     $success = "Correct! Je hebt de puzzel opgelost.";
                     $stmt = $db->prepare("UPDATE solved_puzzles SET attempts = ?, solved = 1, solved_at = NOW() WHERE team_id = ? AND puzzle_id = ?");
@@ -284,7 +329,7 @@ if (isset($_POST['submit_answer']) && isset($_POST['puzzle_id']) && !$gameOver) 
             }
         }
         
-        // Check if all puzzles in the room are solved
+        // Check if all puzzles in the room are solved - Fix completion logic
         $stmt = $db->prepare("
             SELECT COUNT(*) AS total_puzzles,
             (SELECT COUNT(*) FROM solved_puzzles 
@@ -295,8 +340,9 @@ if (isset($_POST['submit_answer']) && isset($_POST['puzzle_id']) && !$gameOver) 
         $stmt->execute([$team['id'], $team['current_room'], $team['current_room']]);
         $result = $stmt->fetch();
         
+        // FIXED COMPLETION LOGIC - Fix the check for puzzle completion
         if ($result['total_puzzles'] > 0 && $result['total_puzzles'] <= $result['solved_puzzles']) {
-            // All puzzles in room solved
+            // All puzzles in this room solved
             if ($team['current_room'] >= $totalRooms) {
                 // This was the last room, game completed
                 $escapeTime = time() - $team['start_time'];
@@ -304,50 +350,28 @@ if (isset($_POST['submit_answer']) && isset($_POST['puzzle_id']) && !$gameOver) 
                 $stmt->execute([$escapeTime, $team['id']]);
                 $success = "Gefeliciteerd! Je hebt alle puzzels opgelost en bent ontsnapt in " . formatTime($escapeTime) . "!";
                 $gameOver = true;
+                // Redirect to show success screen
+                header("Location: play.php");
+                exit();
             } else {
                 // Move to next room
                 $nextRoomId = $team['current_room'] + 1;
                 $stmt = $db->prepare("UPDATE teams SET current_room = ? WHERE id = ?");
                 $stmt->execute([$nextRoomId, $team['id']]);
-                $team['current_room'] = $nextRoomId;
                 $success = "Je hebt alle puzzels in deze kamer opgelost! Je gaat naar de volgende kamer.";
+                // Redirect to refresh the page with new room
+                header("Location: play.php");
+                exit();
             }
         }
     }
 }
 
-// Handle next room navigation
-if (isset($_POST['next_room']) && !$gameOver) {
-    $nextRoomId = $team['current_room'] + 1;
-    
-    // Check if the next room exists and if all puzzles in current room are solved
-    $stmt = $db->prepare("
-        SELECT COUNT(*) AS total_puzzles,
-        (SELECT COUNT(*) FROM solved_puzzles 
-         WHERE team_id = ? AND solved = 1 AND puzzle_id IN 
-         (SELECT id FROM puzzles WHERE room_id = ?)) AS solved_puzzles
-        FROM puzzles WHERE room_id = ?
-    ");
-    $stmt->execute([$team['id'], $team['current_room'], $team['current_room']]);
-    $result = $stmt->fetch();
-    
-    if ($result['total_puzzles'] > 0 && $result['total_puzzles'] <= $result['solved_puzzles']) {
-        if ($nextRoomId <= $totalRooms) {
-            $stmt = $db->prepare("UPDATE teams SET current_room = ? WHERE id = ?");
-            $stmt->execute([$nextRoomId, $team['id']]);
-            $team['current_room'] = $nextRoomId;
-            $success = "Je bent nu in de volgende kamer!";
-        } else {
-            // This was the last room, game completed
-            $escapeTime = time() - $team['start_time'];
-            $stmt = $db->prepare("UPDATE teams SET escape_time = ? WHERE id = ?");
-            $stmt->execute([$escapeTime, $team['id']]);
-            $success = "Gefeliciteerd! Je hebt alle puzzels opgelost en bent ontsnapt in " . formatTime($escapeTime) . "!";
-            $gameOver = true;
-        }
-    } else {
-        $errors[] = "Je moet eerst alle puzzels in deze kamer oplossen!";
-    }
+// Check if game is over from session (for page reloads after game over)
+if (isset($_SESSION['game_over']) && $_SESSION['game_over'] === true) {
+    $gameOver = true;
+    // Keep this flag only for one page load
+    unset($_SESSION['game_over']);
 }
 
 // Get current room
@@ -390,6 +414,9 @@ if (!$gameOver && isset($team['current_room'])) {
         }
     }
 }
+
+// REMOVE ALL REDUNDANT GAME STATUS CHECKS
+// Remove any code blocks here that check $team['escape_time']
 ?>
 
 <!DOCTYPE html>
@@ -458,47 +485,92 @@ if (!$gameOver && isset($team['current_room'])) {
             margin-top: 20px;
         }
         
-        /* Room Container - verbeterde achtergrond met afbeeldingen */
+        /* Verbeterde Room Container met getekende/gestileerde achtergronden */
         .room-container {
             min-height: 500px;
             padding: 20px;
             border-radius: 0;
             position: relative;
             color: white;
-            background-color: #162035;
             overflow: hidden;
             border: 1px solid #333;
             background-size: cover;
             background-position: center;
+            background-repeat: no-repeat;
         }
         
-        /* Kamer stijlen met echte achtergrondafbeeldingen */
+        /* Vervang de achtergrondafbeeldingen met lokale afbeeldingen in de assets map */
         .modern-lab-room {
-            background-image: url('../assets/images/lab-background.jpg');
-            /* Fallback achtergrond als afbeelding niet laadt */
-            background-color: #162035;
+            background-image: url('../assets/images/backgrounds/laboratory-background.png');
+            background-color: #162035; /* Fallback kleur */
+            position: relative;
+            background-size: cover;
+            background-position: center;
         }
         
         .control-room-room {
-            background-image: url('../assets/images/control-room-background.jpg');
-            /* Fallback achtergrond als afbeelding niet laadt */
-            background-color: #1a2336;
-        }
-        
-        /* Zorg dat de tekst leesbaar is boven de achtergrondafbeelding */
-        .room-info {
-            background-color: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            border: 1px solid #444;
-            z-index: 5;
+            background-image: url('../assets/images/backgrounds/laboratory-background.png');
+            background-color: #1a2336; /* Fallback kleur */
             position: relative;
+            background-size: cover;
+            background-position: center;
         }
         
-        .room-info h3 {
-            margin-top: 0;
-            color: #fff;
+        /* Donkere overlay aanpassen voor deze lokale afbeelding */
+        .room-container::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 20, 0.6); /* Aangepaste overlay voor betere leesbaarheid */
+            z-index: 1;
+        }
+        
+        /* Zorg dat alle kinderen boven de overlay komen */
+        .room-container > * {
+            position: relative;
+            z-index: 2; /* Hoger dan de overlay */
+        }
+        
+        /* Maak de puzzelknoppen nog duidelijker zichtbaar */
+        .puzzle-object {
+            position: absolute;
+            width: 90px; /* Iets groter */
+            height: 90px; /* Iets groter */
+            cursor: pointer;
+            transition: all 0.3s;
+            background-color: rgba(0, 0, 0, 0.7); /* Bijna zwarte achtergrond */
+            border: 4px solid rgba(255, 255, 255, 0.9); /* Witte rand */
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.5), 0 0 15px rgba(0, 0, 0, 0.8); /* Fel wit glow effect */
+            z-index: 10;
+        }
+        
+        .puzzle-object:hover {
+            transform: scale(1.15);
+            box-shadow: 0 0 40px rgba(255, 255, 255, 0.8), 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+        
+        .puzzle-object.solved {
+            background-color: rgba(0, 0, 0, 0.7);
+            border-color: rgba(46, 204, 113, 0.9); /* Heldere groene rand voor opgeloste puzzels */
+            box-shadow: 0 0 30px rgba(46, 204, 113, 0.7), 0 0 15px rgba(0, 0, 0, 0.8);
+        }
+        
+        /* Maak de info-box duidelijker zichtbaar */
+        .room-info {
+            background-color: rgba(0, 0, 0, 0.85);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border: 1px solid #555;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
         }
         
         /* Game Header - update to match the screenshot */
@@ -527,12 +599,13 @@ if (!$gameOver && isset($team['current_room'])) {
         
         /* Progress - update to match the screenshot */
         .progress-container {
-            margin: 20px 0;
+            margin: 10px 0; /* Kleinere marges */
             background-color: rgba(0, 0, 0, 0.3);
-            height: 10px;
+            height: 6px; /* Kleinere hoogte (was 10px) */
             border-radius: 0;
             overflow: hidden;
             border: 1px solid #444;
+            max-width: 75%; /* Beperkt de breedte */
         }
         
         .progress-bar {
@@ -544,31 +617,31 @@ if (!$gameOver && isset($team['current_room'])) {
         /* Puzzle Objects - improve visibility */
         .puzzle-object {
             position: absolute;
-            width: 70px;
-            height: 70px;
+            width: 80px;
+            height: 80px;
             cursor: pointer;
             transition: all 0.3s;
-            background-color: rgba(41, 128, 185, 0.2);
-            border: 2px solid rgba(41, 128, 185, 0.4);
+            background-color: rgba(20, 20, 20, 0.8); /* Donkerdere achtergrond */
+            border: 3px solid rgba(52, 152, 219, 0.8); /* Helderdere rand */
             border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 35px;
-            box-shadow: 0 0 20px rgba(41, 128, 185, 0.3);
+            box-shadow: 0 0 20px rgba(52, 152, 219, 0.7), 0 0 10px rgba(0, 0, 0, 0.5); /* Glow effect en schaduw */
+            z-index: 10; /* Zorg dat ze boven alles uitkomen */
         }
         
         .puzzle-object:hover {
             transform: scale(1.1);
-            background-color: rgba(41, 128, 185, 0.3);
-            box-shadow: 0 0 30px rgba(41, 128, 185, 0.5);
+            background-color: rgba(25, 25, 25, 0.9);
+            box-shadow: 0 0 30px rgba(52, 152, 219, 0.9), 0 0 15px rgba(0, 0, 0, 0.7);
         }
         
         .puzzle-object.solved {
-            filter: grayscale(100%) brightness(60%);
-            border-color: rgba(46, 204, 113, 0.4);
-            background-color: rgba(46, 204, 113, 0.2);
-            box-shadow: 0 0 20px rgba(46, 204, 113, 0.3);
+            background-color: rgba(20, 20, 20, 0.8);
+            border-color: rgba(46, 204, 113, 0.8); /* Groene rand voor opgeloste puzzels */
+            box-shadow: 0 0 20px rgba(46, 204, 113, 0.7), 0 0 10px rgba(0, 0, 0, 0.5);
         }
         
         /* PUZZLE MODAL - EXACT ZOALS OP DE SCREENSHOTS */
@@ -708,11 +781,6 @@ if (!$gameOver && isset($team['current_room'])) {
         }
         
         .screen-content {
-            background-color: rgba(0, 0, 0, 0.6);
-            padding: 30px;
-            border-radius: 10px;
-            color: white;
-        }
         
         /* Footer */
         footer {
@@ -792,6 +860,36 @@ if (!$gameOver && isset($team['current_room'])) {
             100% {
                 box-shadow: 0 0 0 0 rgba(76, 175, 80, 0);
             }
+        }
+        
+        .hint-container {
+            margin: 15px 0;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            border: 1px dashed #ccc;
+        }
+        
+        .hint-button {
+            background-color: #ff9800;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .hint-button:hover {
+            background-color: #f57c00;
+        }
+        
+        .hint-text {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff3e0;
+            border-radius: 4px;
+            border-left: 3px solid #ff9800;
         }
     </style>
 </head>
@@ -879,87 +977,38 @@ if (!$gameOver && isset($team['current_room'])) {
                         <div class="progress-container">
                             <div class="progress-bar" style="width: <?= $roomProgress ?>%"></div>
                         </div>
-                        <p>Voortgang in deze kamer: <?= number_format($roomProgress) ?>%</p>
+                        <p style="font-size: 14px; margin-top: 5px;">Voortgang in deze kamer: <?= number_format($roomProgress) ?>%</p>
                         
-                        <?php 
-                        // Check if all puzzles in the room are solved to show the next room button
-                        $stmt = $db->prepare("
-                            SELECT COUNT(*) AS total_puzzles,
-                            (SELECT COUNT(*) FROM solved_puzzles 
-                             WHERE team_id = ? AND solved = 1 AND puzzle_id IN 
-                             (SELECT id FROM puzzles WHERE room_id = ?)) AS solved_puzzles
-                            FROM puzzles WHERE room_id = ?
-                        ");
-                        $stmt->execute([$team['id'], $currentRoom['id'], $currentRoom['id']]);
-                        $result = $stmt->fetch();
-                        
-                        if ($result['total_puzzles'] > 0 && $result['total_puzzles'] <= $result['solved_puzzles'] && $currentRoom['order_num'] < $totalRooms): 
-                        ?>
-                            <div class="next-room-container">
+                        <div class="next-room-container" style="display: flex; justify-content: space-between; margin-top: 15px;">
+                            <?php if ($currentRoom['order_num'] > 1): ?>
                                 <form method="post">
+                                    <input type="hidden" name="prev_room" value="1">
+                                    <button type="submit" class="btn btn-prev-room" style="background-color: #607D8B; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; display: inline-flex; align-items: center;">
+                                        <span class="arrow" style="margin-right: 10px;">←</span>
+                                        <span>Naar vorige kamer</span>
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                            
+                            <?php if ($currentRoom['order_num'] < $totalRooms): ?>
+                                <form method="post" style="<?= $currentRoom['order_num'] > 1 ? 'margin-left: auto;' : '' ?>">
                                     <button type="submit" name="next_room" class="btn btn-next-room">
                                         <span>Naar volgende kamer</span>
                                         <span class="arrow">→</span>
                                     </button>
                                 </form>
-                            </div>
-                        <?php endif; ?>
+                            <?php endif; ?>
+                        </div>
                     </div>
-                    
-                    <?php if ($currentRoom['room_style'] === 'modern-lab'): ?>
-                        <!-- Lab room decoraties -->
-                        <div class="lab-cabinet"></div>
-                        <div class="lab-shelf"></div>
-                        <div class="lab-table"></div>
-                        <div class="lab-computer">🖥️</div>
-                        
-                        <div style="position: absolute; font-size: 30px; top: 50%; left: 10%; opacity: 0.8;">🧪</div>
-                        <div style="position: absolute; font-size: 30px; top: 70%; left: 80%; opacity: 0.8;">🧫</div>
-                        <div style="position: absolute; font-size: 30px; top: 30%; left: 90%; opacity: 0.8;">🧬</div>
-                        <div style="position: absolute; font-size: 35px; top: 20%; left: 40%; opacity: 0.8;">🔬</div>
-                        <div style="position: absolute; font-size: 25px; top: 60%; left: 20%; opacity: 0.8;">⚗️</div>
-                        <div style="position: absolute; font-size: 25px; top: 35%; left: 65%; opacity: 0.8;">📊</div>
-                        <div style="position: absolute; font-size: 25px; top: 45%; left: 30%; opacity: 0.8;">🧴</div>
-                    <?php elseif ($currentRoom['room_style'] === 'control-room'): ?>
-                        <!-- Control room decoraties -->
-                        <div style="position: absolute; font-size: 30px; top: 60%; left: 50%; opacity: 0.8;">🎮</div>
-                        <div style="position: absolute; font-size: 30px; top: 20%; left: 10%; opacity: 0.8;">📺</div>
-                        <div style="position: absolute; font-size: 30px; top: 40%; left: 80%; opacity: 0.8;">🖨️</div>
-                        <div style="position: absolute; font-size: 25px; top: 30%; left: 30%; opacity: 0.8;">📡</div>
-                        <div style="position: absolute; font-size: 25px; top: 50%; left: 20%; opacity: 0.8;">⌨️</div>
-                    <?php endif; ?>
                     
                     <?php if (!empty($puzzles)): ?>
                         <?php foreach ($puzzles as $puzzle): ?>
                             <div class="puzzle-object <?= isset($puzzle['is_solved']) && $puzzle['is_solved'] ? 'solved' : '' ?>" 
-                                style="top: <?= $puzzle['position_top'] ?>%; left: <?= $puzzle['position_left'] ?>%; position: absolute; width: 80px; height: 80px; cursor: pointer; background-color: rgba(255,255,255,0.1); border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 40px; box-shadow: 0 0 15px rgba(0,0,0,0.5);"
+                                style="top: <?= $puzzle['position_top'] ?>%; left: <?= $puzzle['position_left'] ?>%; position: absolute; width: 80px; height: 80px; cursor: pointer; z-index: 10; display: flex; justify-content: center; align-items: center; font-size: 40px;"
                                 onclick="window.location.href='play.php?puzzle_id=<?= $puzzle['id'] ?>';">
                                 <?= isset($puzzle['emoji']) ? $puzzle['emoji'] : '❓' ?>
                             </div>
                         <?php endforeach; ?>
-                    <?php endif; ?>
-                    
-                    <?php 
-                    // Altijd de controle doen voor de pijl, ongeacht waar deze eerst werd gedaan
-                    $stmt = $db->prepare("
-                        SELECT COUNT(*) AS total_puzzles,
-                        (SELECT COUNT(*) FROM solved_puzzles 
-                         WHERE team_id = ? AND solved = 1 AND puzzle_id IN 
-                         (SELECT id FROM puzzles WHERE room_id = ?)) AS solved_puzzles
-                        FROM puzzles WHERE room_id = ?
-                    ");
-                    $stmt->execute([$team['id'], $currentRoom['id'], $currentRoom['id']]);
-                    $roomSolvedStatus = $stmt->fetch();
-                    
-                    // Controleer of alle puzzels zijn opgelost en of dit niet de laatste kamer is
-                    if ($roomSolvedStatus && $roomSolvedStatus['total_puzzles'] > 0 && 
-                        $roomSolvedStatus['total_puzzles'] <= $roomSolvedStatus['solved_puzzles'] && 
-                        $currentRoom['order_num'] < $totalRooms): 
-                    ?>
-                        <!-- Grotere, zichtbaardere pijl met duidelijkere positionering -->
-                        <div class="next-room-arrow" onclick="document.querySelector('.btn-next-room').click();">
-                            <span class="arrow-icon">➡️</span>
-                        </div>
                     <?php endif; ?>
                 </div>
             <?php else: ?>
@@ -991,6 +1040,15 @@ if (!$gameOver && isset($team['current_room'])) {
                     </div>
                     
                     <p><?= htmlspecialchars($currentPuzzle['description']) ?></p>
+                    
+                    <?php if (!empty($currentPuzzle['hint'])): ?>
+                    <div class="hint-container">
+                        <button type="button" class="hint-button" onclick="toggleHint()">Toon Hint</button>
+                        <div id="hint-text" class="hint-text" style="display: none;">
+                            <p><strong>Hint:</strong> <?= htmlspecialchars($currentPuzzle['hint']) ?></p>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                     
                     <form method="post">
                         <input type="hidden" name="puzzle_id" value="<?= $currentPuzzle['id'] ?>">
@@ -1060,6 +1118,20 @@ if (!$gameOver && isset($team['current_room'])) {
                 });
             });
         });
+        
+        // Voeg JavaScript toe voor het tonen/verbergen van hints
+        function toggleHint() {
+            const hintText = document.getElementById('hint-text');
+            const hintButton = document.querySelector('.hint-button');
+            
+            if (hintText.style.display === 'none') {
+                hintText.style.display = 'block';
+                hintButton.textContent = 'Verberg Hint';
+            } else {
+                hintText.style.display = 'none';
+                hintButton.textContent = 'Toon Hint';
+            }
+        }
     </script>
 </body>
 </html>
