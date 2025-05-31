@@ -53,10 +53,20 @@ function getTeamById($teamId) {
     return $stmt->fetch();
 }
 
+/**
+ * Format time in seconds to a readable format
+ */
 function formatTime($seconds) {
-    $minutes = floor($seconds / 60);
-    $seconds = $seconds % 60;
-    return sprintf('%02d:%02d', $minutes, $seconds);
+    // Convert seconds to readable duration format
+    $hours = floor($seconds / 3600);
+    $minutes = floor(($seconds % 3600) / 60);
+    $secs = $seconds % 60;
+    
+    if ($hours > 0) {
+        return sprintf("%02d:%02d:%02d", $hours, $minutes, $secs);
+    } else {
+        return sprintf("%02d:%02d", $minutes, $secs);
+    }
 }
 
 // Sanitize and validate user input

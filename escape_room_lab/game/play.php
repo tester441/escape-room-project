@@ -183,7 +183,13 @@ if (isset($_POST['time_up'])) {
 // Check if game is already completed
 if ($team['escape_time'] !== null) {
     $gameOver = true;
-    $success = "Je hebt deze escape room al voltooid in " . formatTime($team['escape_time']) . "!";
+    if ($team['escape_time'] > 0) {
+        // Only show completion message for successful completion (escape_time > 0)
+        $success = "Je hebt deze escape room al voltooid in " . formatTime($team['escape_time']) . "!";
+    } else {
+        // For failed games (escape_time = 0), show a failure message
+        $errors[] = "Je hebt deze escape room al geprobeerd, maar niet kunnen voltooien.";
+    }
 }
 
 // Start the game if not started already
@@ -781,6 +787,71 @@ if (!$gameOver && isset($team['current_room'])) {
         }
         
         .screen-content {
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            border-radius: 10px;
+            color: white;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        /* Sterren rating stijl */
+        .rating {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.4);
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .stars {
+            font-size: 32px;
+            letter-spacing: 5px;
+            margin: 10px 0;
+        }
+
+        .star {
+            color: #aaa;
+            transition: all 0.3s ease;
+        }
+
+        .star.filled {
+            color: #ffdd00;
+            text-shadow: 0 0 5px rgba(255, 221, 0, 0.7);
+        }
+
+        .stats-container {
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat-box {
+            background-color: rgba(0, 0, 0, 0.4);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 130px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .action-buttons {
+            margin-top: 25px;
+        }
+
+        .action-buttons .btn {
+            font-size: 18px;
+            padding: 12px 24px;
+            margin: 0 5px;
+            transition: all 0.3s ease;
+        }
         
         /* Footer */
         footer {
@@ -940,21 +1011,170 @@ if (!$gameOver && isset($team['current_room'])) {
         <div class="game-container">
             <?php if ($gameOver): ?>
                 <div class="game-over">
-                    <?php if ($team['escape_time']): ?>
+                    <?php if ($team['escape_time'] !== null && $team['escape_time'] > 0): ?>
                         <div class="success-screen">
                             <div class="screen-content">
                                 <h3>Gefeliciteerd! Je bent ontsnapt!</h3>
-                                <p>Je team heeft de escape room voltooid in <?= formatTime($team['escape_time']) ?>!</p>
-                                <div style="font-size: 100px; text-align: center;">🔑</div>
+                                <p>Je team heeft de escape room voltooid in 
+                                    <?php 
+                                    // Correcte weergave van de escape tijd als uren, minuten en seconden
+                                    $seconds = $team['escape_time'];
+                                    $hours = floor($seconds / 3600);
+                                    $minutes = floor(($seconds % 3600) / 60);
+                                    $secs = $seconds % 60;
+                                    
+                                    if ($hours > 0) {
+                                        echo "$hours uur, $minutes minuten en $secs seconden";
+                                    } else if ($minutes > 0) {
+                                        echo "$minutes minuten en $secs seconden";
+                                    } else {
+                                        echo "$secs seconden";
+                                    }
+                                    ?>!
+                                </p>
+                                <div style="font-size: 100px; text-align: center;">🏆</div>
                                 <p>Je hebt de sleutel gevonden en bent veilig ontsnapt uit het laboratorium!</p>
+                                
+                                <?php
+                                // Bereken sterren-rating gebaseerd op de ontsnappingstijd
+                                $timeLimit = GAME_TIME_LIMIT;
+                                $escapeTime = $team['escape_time'];
+                                $percentage = min(100, max(0, ($timeLimit - $escapeTime) / $timeLimit * 100));
+                                $stars = 0;
+                                
+                                if ($percentage >= 80) $stars = 5;
+                                else if ($percentage >= 60) $stars = 4;
+                                else if ($percentage >= 40) $stars = 3;
+                                else if ($percentage >= 20) $stars = 2;
+                                else $stars = 1;
+                                
+                                // Haal de opgeloste puzzels op
+                                $stmt = $db->prepare("SELECT COUNT(*) as count FROM solved_puzzles WHERE team_id = ? AND solved = 1");
+                                $stmt->execute([$team['id']]);
+                                $solvedCount = $stmt->fetch()['count'];
+                                
+                                // Haal alle puzzels op
+                                $stmt = $db->query("SELECT COUNT(*) as count FROM puzzles");
+                                $totalPuzzles = $stmt->fetch()['count'];
+                                
+                                // Bereken de gemiddelde tijd per puzzel
+                                $avgTimePerPuzzle = $solvedCount > 0 ? round($escapeTime / $solvedCount) : 0;
+                                ?>
+                                
+                                <div class="rating">
+                                    <p>Jouw score:</p>
+                                    <div class="stars">
+                                        <?php for ($i = 1; $i <= 5; $i++): ?>
+                                            <span class="star <?= ($i <= $stars) ? 'filled' : '' ?>">★</span>
+                                        <?php endfor; ?>
+                                    </div>
+                                    <p><?= $stars ?> van de 5 sterren!</p>
+                                </div>
+                                
+                                <div class="stats-container">
+                                    <div class="stat-box">
+                                        <div>Totale tijd</div>
+                                        <div class="stat-value"><?= formatTime($escapeTime) ?></div>
+                                    </div>
+                                    <div class="stat-box">
+                                        <div>Opgeloste puzzels</div>
+                                        <div class="stat-value"><?= $solvedCount ?>/<?= $totalPuzzles ?></div>
+                                    </div>
+                                    <div class="stat-box">
+                                        <div>Gemiddelde tijd per puzzel</div>
+                                        <div class="stat-value"><?= formatTime($avgTimePerPuzzle) ?></div>
+                                    </div>
+                                </div>
+                                
+                                <p style="margin-top: 20px;">
+                                    <?php if ($stars >= 4): ?>
+                                        Uitstekend werk! Jullie zijn echte escape room experts!
+                                    <?php elseif ($stars >= 3): ?>
+                                        Goed gedaan! Jullie hebben het goed opgelost!
+                                    <?php else: ?>
+                                        Gelukt! Volgende keer kunnen jullie vast nog sneller!
+                                    <?php endif; ?>
+                                </p>
                             </div>
                         </div>
                     <?php else: ?>
                         <div class="failure-screen">
                             <div class="screen-content">
                                 <h3>Game Over</h3>
-                                <p>Je hebt het niet gered om uit het laboratorium te ontsnappen.</p>
-                                <p>Klik op 'Opnieuw Spelen' om het nog eens te proberen.</p>
+                                
+                                <?php if (isset($_POST['time_up'])): ?>
+                                    <div style="font-size: 100px; text-align: center;">⏱️</div>
+                                    <p>De tijd is op! Je hebt het niet gered om op tijd uit het laboratorium te ontsnappen.</p>
+                                    
+                                    <?php
+                                    // Bereken voortgang bij tijdsoverschrijding
+                                    $stmt = $db->prepare("SELECT COUNT(*) as count FROM solved_puzzles WHERE team_id = ? AND solved = 1");
+                                    $stmt->execute([$team['id']]);
+                                    $solvedCount = $stmt->fetch()['count'];
+                                    
+                                    $stmt = $db->query("SELECT COUNT(*) as count FROM puzzles");
+                                    $totalPuzzles = $stmt->fetch()['count'];
+                                    
+                                    $progressPercentage = round(($solvedCount / $totalPuzzles) * 100);
+                                    ?>
+                                    
+                                    <div class="stats-container">
+                                        <div class="stat-box">
+                                            <div>Voortgang</div>
+                                            <div class="stat-value"><?= $progressPercentage ?>%</div>
+                                        </div>
+                                        <div class="stat-box">
+                                            <div>Opgeloste puzzels</div>
+                                            <div class="stat-value"><?= $solvedCount ?>/<?= $totalPuzzles ?></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <p style="margin-top: 20px;">Tip: Verdeel taken en werk samen om tijd te besparen!</p>
+                                <?php else: ?>
+                                    <div style="font-size: 100px; text-align: center;">❌</div>
+                                    <p>Je hebt te veel fouten gemaakt bij één van de puzzels.</p>
+                                    
+                                    <?php
+                                    // Bereken voortgang bij fouten
+                                    $stmt = $db->prepare("SELECT COUNT(*) as count FROM solved_puzzles WHERE team_id = ? AND solved = 1");
+                                    $stmt->execute([$team['id']]);
+                                    $solvedCount = $stmt->fetch()['count'];
+                                    
+                                    $stmt = $db->query("SELECT COUNT(*) as count FROM puzzles");
+                                    $stmt->execute();
+                                    $totalPuzzles = $stmt->fetch()['count'];
+                                    
+                                    $progressPercentage = round(($solvedCount / $totalPuzzles) * 100);
+                                    
+                                    // Haal mislukte puzzels op om tips te geven
+                                    $stmt = $db->prepare("
+                                        SELECT p.title, p.room_id 
+                                        FROM solved_puzzles sp 
+                                        JOIN puzzles p ON sp.puzzle_id = p.id
+                                        WHERE sp.team_id = ? AND sp.solved = 0 AND sp.attempts >= p.max_attempts
+                                        LIMIT 1
+                                    ");
+                                    $stmt->execute([$team['id']]);
+                                    $failedPuzzle = $stmt->fetch();
+                                    ?>
+                                    
+                                    <div class="stats-container">
+                                        <div class="stat-box">
+                                            <div>Voortgang</div>
+                                            <div class="stat-value"><?= $progressPercentage ?>%</div>
+                                        </div>
+                                        <div class="stat-box">
+                                            <div>Opgeloste puzzels</div>
+                                            <div class="stat-value"><?= $solvedCount ?>/<?= $totalPuzzles ?></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <?php if ($failedPuzzle): ?>
+                                        <p style="margin-top: 20px;">Je had moeite met: <?= htmlspecialchars($failedPuzzle['title']) ?></p>
+                                    <?php endif; ?>
+                                    
+                                    <p>Tip: Lees de puzzels goed en denk logisch na over de wetenschappelijke principes!</p>
+                                <?php endif; ?>
                             </div>
                         </div>
                     <?php endif; ?>

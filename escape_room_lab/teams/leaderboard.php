@@ -63,7 +63,6 @@ $teams = $stmt->fetchAll();
                             <th>Team</th>
                             <th>Aangemaakt Door</th>
                             <th>Ontsnappingstijd</th>
-                            <th>Voltooid Op</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -72,8 +71,21 @@ $teams = $stmt->fetchAll();
                                 <td><?= $index + 1 ?></td>
                                 <td><?= htmlspecialchars($team['name']) ?></td>
                                 <td><?= htmlspecialchars($team['creator']) ?></td>
-                                <td><?= formatTime($team['escape_time']) ?></td>
-                                <td><?= date('j F Y', strtotime($team['created_at'])) ?></td>
+                                <td>
+                                    <?php
+                                    // Format the escape time in minutes:seconds format
+                                    $seconds = $team['escape_time'];
+                                    $hours = floor($seconds / 3600);
+                                    $minutes = floor(($seconds % 3600) / 60);
+                                    $secs = $seconds % 60;
+                                                
+                                    if ($hours > 0) {
+                                        echo sprintf("%02d:%02d:%02d", $hours, $minutes, $secs);
+                                    } else {
+                                        echo sprintf("%02d:%02d", $minutes, $secs);
+                                    }
+                                    ?>
+                                </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
