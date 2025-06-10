@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Jun 02, 2025 at 05:58 PM
+-- Generation Time: Jun 10, 2025 at 02:23 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -47,10 +47,12 @@ CREATE TABLE `puzzles` (
 --
 
 INSERT INTO `puzzles` (`id`, `room_id`, `title`, `description`, `emoji`, `position_top`, `position_left`, `options`, `correct_answer`, `max_attempts`, `order_num`, `hint`) VALUES
-(1, 1, 'Chemische Test', 'Je ziet een reeks gekleurde vloeistoffen. Welke vloeistof geeft een groene kleur aan een vlam?', '🧪', 40, 20, '{\"A\":\"Rood (Lithiumchloride)\",\"B\":\"Groen (Koperchloride)\",\"C\":\"Paars (Kaliumchloride)\",\"D\":\"Geel (Natriumchloride)\"}', 'B', 2, 1, NULL),
+(1, 1, 'Chemische Test', 'Je ziet een reeks gekleurde vloeistoffen. Welke vloeistof geeft een groene kleur aan een vlam?', '🧪', 40, 20, '{\"A\":\"(Lithiumchloride)\",\"B\":\"(Koperchloride)\",\"C\":\"(Kaliumchloride)\",\"D\":\"(Natriumchloride)\"}', 'B', 2, 1, ''),
 (2, 1, 'Materiaalonderzoek', 'Op het computerscherm zie je een analyse van metalen. Welke vloeistof kan aluminium verzwakken en smelten bij kamertemperatuur?', '💻', 35, 65, '{\"A\":\"Water\",\"B\":\"Alcohol\",\"C\":\"Gallium\",\"D\":\"Azijnzuur\"}', 'C', 2, 2, NULL),
-(3, 2, 'Chemische Reactie', 'Op een post-it bij de kluis staat: \"Element dat heftig reageert met water\". Welk element is dit?', '🔒', 60, 25, '{\"A\":\"Natrium (Na)\",\"B\":\"Zuurstof (O)\",\"C\":\"Helium (He)\",\"D\":\"IJzer (Fe)\"}', 'A', 2, 1, NULL),
-(4, 2, 'Labwaarden', 'Het controlepaneel vraagt om de exacte temperatuur waarop water kookt op zeeniveau.', '🎛️', 30, 70, '{\"A\":\"0°C\",\"B\":\"100°C\",\"C\":\"50°C\",\"D\":\"200°C\"}', 'B', 2, 2, NULL);
+(3, 1, 'Periodiek Systeem', 'Voor je ligt een puzzel met het periodiek systeem. Welk element heeft atoomnummer 6?', '📊', 60, 40, '{\"A\":\"Koolstof (C)\",\"B\":\"Zuurstof (O)\",\"C\":\"Stikstof (N)\",\"D\":\"Waterstof (H)\"}', 'A', 2, 3, NULL),
+(4, 2, 'Chemische Reactie', 'Op een post-it bij de kluis staat: \"Element dat heftig reageert met water\". Welk element is dit?', '🔒', 60, 25, '{\"A\":\"Natrium (Na)\",\"B\":\"Zuurstof (O)\",\"C\":\"Helium (He)\",\"D\":\"IJzer (Fe)\"}', 'A', 2, 1, NULL),
+(5, 2, 'Labwaarden', 'Het controlepaneel vraagt om de exacte temperatuur waarop water kookt op zeeniveau.', '🎛️', 30, 70, '{\"A\":\"0°C\",\"B\":\"100°C\",\"C\":\"50°C\",\"D\":\"200°C\"}', 'B', 2, 2, NULL),
+(6, 2, 'Zuurgraad', 'Op de monitor zie je een pH-schaal. Welke vloeistof is sterk basisch (alkalisch)?', '🖥️', 45, 45, '{\"A\":\"Azijn (pH 3)\",\"B\":\"Puur water (pH 7)\",\"C\":\"Ammoniak (pH 11)\",\"D\":\"Citroen (pH 2)\"}', 'C', 2, 3, NULL);
 
 -- --------------------------------------------------------
 
@@ -94,10 +96,7 @@ CREATE TABLE `solved_puzzles` (
 --
 
 INSERT INTO `solved_puzzles` (`id`, `team_id`, `puzzle_id`, `attempts`, `solved`, `solved_at`) VALUES
-(1, 2, 1, 1, 1, '2025-05-31 18:18:19'),
-(2, 2, 2, 1, 1, '2025-05-31 18:18:22'),
-(3, 2, 3, 1, 1, '2025-05-31 18:18:23'),
-(4, 2, 4, 1, 1, '2025-05-31 18:18:25');
+(1, 2, 6, 1, 0, '2025-06-10 12:21:34');
 
 -- --------------------------------------------------------
 
@@ -120,7 +119,7 @@ CREATE TABLE `teams` (
 --
 
 INSERT INTO `teams` (`id`, `name`, `created_by`, `start_time`, `current_room`, `escape_time`, `created_at`) VALUES
-(2, 'test123', 2, 1748715497, 2, 8, '2025-05-24 15:32:44');
+(2, 'test123', 2, 1749558084, 2, 0, '2025-05-24 15:32:44');
 
 -- --------------------------------------------------------
 
@@ -219,7 +218,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `puzzles`
 --
 ALTER TABLE `puzzles`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- AUTO_INCREMENT for table `rooms`
@@ -231,7 +230,7 @@ ALTER TABLE `rooms`
 -- AUTO_INCREMENT for table `solved_puzzles`
 --
 ALTER TABLE `solved_puzzles`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `teams`

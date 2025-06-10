@@ -82,9 +82,13 @@ function resetGameDatabase() {
             
             (1, 'Materiaalonderzoek', 'Op het computerscherm zie je een analyse van metalen. Welke vloeistof kan aluminium verzwakken en smelten bij kamertemperatuur?', '💻', 35, 65, '{\"A\":\"Water\",\"B\":\"Alcohol\",\"C\":\"Gallium\",\"D\":\"Azijnzuur\"}', 'C', 2, 2),
             
+            (1, 'Periodiek Systeem', 'Voor je ligt een puzzel met het periodiek systeem. Welk element heeft atoomnummer 6?', '📊', 60, 40, '{\"A\":\"Koolstof (C)\",\"B\":\"Zuurstof (O)\",\"C\":\"Stikstof (N)\",\"D\":\"Waterstof (H)\"}', 'A', 2, 3),
+            
             (2, 'Chemische Reactie', 'Op een post-it bij de kluis staat: \"Element dat heftig reageert met water\". Welk element is dit?', '🔒', 60, 25, '{\"A\":\"Natrium (Na)\",\"B\":\"Zuurstof (O)\",\"C\":\"Helium (He)\",\"D\":\"IJzer (Fe)\"}', 'A', 2, 1),
             
-            (2, 'Labwaarden', 'Het controlepaneel vraagt om de exacte temperatuur waarop water kookt op zeeniveau.', '🎛️', 30, 70, '{\"A\":\"0°C\",\"B\":\"100°C\",\"C\":\"50°C\",\"D\":\"200°C\"}', 'B', 2, 2)
+            (2, 'Labwaarden', 'Het controlepaneel vraagt om de exacte temperatuur waarop water kookt op zeeniveau.', '🎛️', 30, 70, '{\"A\":\"0°C\",\"B\":\"100°C\",\"C\":\"50°C\",\"D\":\"200°C\"}', 'B', 2, 2),
+            
+            (2, 'Zuurgraad', 'Op de monitor zie je een pH-schaal. Welke vloeistof is sterk basisch (alkalisch)?', '🖥️', 45, 45, '{\"A\":\"Azijn (pH 3)\",\"B\":\"Puur water (pH 7)\",\"C\":\"Ammoniak (pH 11)\",\"D\":\"Citroen (pH 2)\"}', 'C', 2, 3)
         ");
         
         // Reset team voortgang
